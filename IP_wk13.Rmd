@@ -1,0 +1,326 @@
+---
+title: "Customer Behavior"
+author: "Tom_Kinyanjui_Njoroge"
+date: "July 18, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Defining the Question
+1. To Perform clustering from our analysis and visualizations.
+
+2. Apply K-Means clustering vs Hierarchical clustering 
+
+
+###The metric of Success
+Understand the characteristics of Kira Plastinina Customers and apply unsupervised machine learning algorithms 
+
+
+## Reading the data 
+```{r}
+shoppers <- read.csv("file:///C:/Users/HP/Downloads/online_shoppers_intention.csv")
+head(shoppers)
+```
+## Check the Data
+```{r}
+# check the structure of Data
+str(shoppers)
+```
+
+```{r}
+dim(shoppers)
+```
+
+```{r}
+summary(shoppers)
+```
+
+```{r}
+ # convert into a factor
+shoppers$VisitorType <- factor(shoppers$VisitorType)
+head(shoppers$VisitorType)
+shoppers$Weekend <- factor(shoppers$Weekend)
+head(shoppers$Weekend)
+shoppers$Revenue <- factor(shoppers$Revenue)
+head(shoppers$Revenue)
+shoppers$Month <- factor(shoppers$Month)
+head(shoppers$Month)
+```
+
+## Data Cleaning
+```{r}
+#check for missing values
+colSums(is.na(shoppers))
+anyNA(shoppers)
+mice_mod <- mice(shoppers[, c("Administrative","Administrative_Duration","Informational","Informational_Duration","ProductRelated","ProductRelated","ProductRelated_Duration","BounceRates","ExitRates")], method='rf')
+mice_complete <- complete(mice_mod)
+shoppers$Administrative <- mice_complete$Administrative
+shoppers$Administrative_Duration  <- mice_complete$Administrative_Duration
+shoppers$Informational <- mice_complete$Informational
+shoppers$Informational_Duration <- mice_complete$Informational_Duration
+shoppers$ProductRelated <- mice_complete$ProductRelated
+shoppers$ProductRelated_Duration <- mice_complete$ProductRelated_Duration
+shoppers$BounceRates <- mice_complete$BounceRates
+shoppers$ExitRates <- mice_complete$ExitRates
+```
+
+
+```{r}
+#checking for duplicates 
+shoppers <- unique(shoppers)
+dim(shoppers)
+```
+###checking for outliers 
+```{r}
+num_col <- shoppers[ ,c(1,2,3,4,5,6,7,8,9,10,12,13,14,15)]
+outlier_detection = function(x){
+  for(i in colnames(x)){
+    boxplot(shoppers[[i]], xlab=i, main=paste0("Boxplot for ",i))
+  }
+}
+outlier_detection(num_col)
+```
+###dealing with outliers 
+```{r}
+# replace outliers with the 5th and 95th percentile
+outlier_replace <- function(x){
+   qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+   caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+   H <- 1.5 * IQR(x, na.rm = T)
+   x[x < (qnt[1] - H)] <- caps[1]
+   x[x > (qnt[2] + H)] <- caps[2]
+   return(x)
+}
+shoppers$Administrative <- outlier_replace(shoppers$Administrative)
+shoppers$Administrative_Duration <-outlier_replace(shoppers$Administrative_Duration)
+shoppers$Informational <- outlier_replace(shoppers$Informational)
+shoppers$Informational_Duration <- outlier_replace(shoppers$Informational_Duration )
+shoppers$ProductRelated <- outlier_replace(shoppers$ProductRelated)
+shoppers$ProductRelated_Duration <- outlier_replace(shoppers$ProductRelated_Duration)
+shoppers$BounceRates <- outlier_replace(shoppers$BounceRates)
+shoppers$ExitRates <- outlier_replace(shoppers$ExitRates)
+shoppers$PageValues <- outlier_replace(shoppers$PageValues)
+shoppers$SpecialDay <- outlier_replace(shoppers$SpecialDay)
+shoppers$OperatingSystems <- outlier_replace(shoppers$OperatingSystems)
+shoppers$Browser <- outlier_replace(shoppers$Browser)
+shoppers$Region <- outlier_replace(shoppers$Region)
+shoppers$TrafficType <- outlier_replace(shoppers$TrafficType)
+# check to see if there are more outliers
+outlier_detection(num_col)
+```
+
+```{r eval=FALSE, include=FALSE}
+# replace the remaining outliers with NA then predict the values
+outlier_na = function(x){
+  col <- c(2,3,4,5,6,7,8,9,10,13,15)
+  for (i in col){
+     outlier <- boxplot.stats(x)$out
+     shoppers[x %in% outlier, names(shoppers)[i]] <- NA 
+  }
+}
+shoppers$Administrative_Duration <-outlier_na(shoppers$Administrative_Duration)
+shoppers$Informational <- outlier_na(shoppers$Informational)
+shoppers$Informational_Duration <- outlier_na(shoppers$Informational_Duration )
+shoppers$ProductRelated <- outlier_na(shoppers$ProductRelated)
+shoppers$ProductRelated_Duration <- outlier_na(shoppers$ProductRelated_Duration)
+shoppers$BounceRates <- outlier_na(shoppers$BounceRates)
+shoppers$ExitRates <- outlier_na(shoppers$ExitRates)
+shoppers$PageValues <- outlier_na(shoppers$PageValues)
+shoppers$SpecialDay <- outlier_na(shoppers$SpecialDay)
+shoppers$Browser <- outlier_na(shoppers$Browser)
+shoppers$Region <- outlier_na(shoppers$Region)
+shoppers$TrafficType <- outlier_na(shoppers$TrafficType)
+colSums(is.na())
+head(shoppers)
+
+##EDA 
+
+### Univariate
+#### Categorical Variables
+
+library("ggplot2" )
+# Group Special Days
+specialday <- ggplot(shoppers, aes(x=factor(SpecialDay), fill = factor(SpecialDay))) + geom_bar()
+specialday +  scale_fill_discrete(name = "Special Day", labels = c("Not Special","Special"))+ labs(title="Number of Special Days", x="Special Days")
+# Count the Months
+months <- ggplot(shoppers ,aes(x=Month , fill=factor(Month))) + geom_bar() + labs(title = "Distribution of the Months", x="Months")
+months +scale_fill_discrete(name = "Month") 
+# Count on Visitor Type
+visitor <- ggplot(shoppers, aes(VisitorType, fill=factor(VisitorType)))+ geom_bar() + labs(title = "Distribution of Visitor Types", x="Special Days")
+visitor + scale_fill_discrete(name = "Visitor Type") 
+# Count on Revenue
+revenue <- ggplot(shoppers, aes(Revenue, fill=factor(Revenue))) +geom_bar() + labs(title = "Distribution of Revenue")
+revenue +scale_fill_discrete(name = "Revenue") 
+# Group Revenue by Months
+revenue1 <- ggplot(shoppers, aes(x=Month, fill= factor(Revenue)))+ geom_bar(position=position_dodge2(width = 1.2, preserve = "single"))
+revenue1 + labs(title = "Distribution of Revenue in a Month") +scale_fill_discrete(name = "Revenue") 
+# Group Special Days by Month
+specialday1 <- ggplot(shoppers, aes(x=Month, fill= factor(SpecialDay)))+ geom_bar(position = position_dodge2(width = 1.2, preserve = "single"))
+specialday1 + scale_fill_discrete(name = "Special Day", labels = c("Not Special","Special")) + labs(title = "Distribution of Special Days in a Month")
+# Group Visitor Type by Month
+visitor1 <- ggplot(shoppers, aes(x=Month, fill=factor(VisitorType)))+geom_bar(position=position_dodge2(width = 1.2, preserve = "single")) + labs(title = "Distribution of Visitor Type in a Month")
+visitor1 + scale_fill_discrete(name = "Visitor Type") 
+# Group Weekend by Month
+weekend <- ggplot(shoppers, aes(x=Month, fill=factor(Weekend)))+geom_bar(position=position_dodge2(width = 1.2, preserve = "single"))+labs(title="Distribution of Revenue during weekends over the Months",subtitle = "(FALSE -No Revenue vs TRUE - Revenue)", x ="")+facet_wrap(~ factor(Revenue) )
+weekend + scale_fill_discrete(name = "Weekend", labels = c("Not Weekend","Weekend")) 
+# Distribution of Traffic Type
+traffictype <- ggplot(shoppers, aes(x=factor(TrafficType), fill=factor(TrafficType)))+ geom_bar()+labs(title="Distribution of Traffic Type", x= "Traffic Type")
+traffictype +scale_fill_discrete(name = "Traffic Type")
+# Distribution of Browser
+browser <-ggplot(shoppers, aes(x=factor(Browser), fill=factor(Browser)))+ geom_bar()+labs(title="Distribution of Browser", x = "Browser")
+browser +scale_fill_discrete(name = "Browser")
+# Distribution of Operating System
+os <- ggplot(shoppers, aes(x=factor(OperatingSystems), fill= factor(OperatingSystems)))+ geom_bar()+labs(title="Distribution of  Operating Systems" , x="Operating Systems")
+os +scale_fill_discrete(name = "Operating Systems") 
+# Distribution of TRaffic Type in a Month
+traffictype1 <- ggplot(shoppers, aes(x=Month, fill=factor(TrafficType))) +geom_bar(width = 0.8,position=position_dodge(width = 0.8))+labs(title="Distribution of Traffic Type in a Month")
+traffictype1 + scale_fill_brewer(name ="Traffic Type",palette="Set1")
+```
+
+```{r Histograms}
+histogram = function(x){
+  for(i in colnames(x)){
+    hist(shoppers[[i]], breaks = 10,main =i,xlab = i,col = "dodgerblue")
+  }
+}
+histogram(num_col)
+```
+### Bivariate
+#### Correlation
+```{r}
+# Convert the Revenue Col to Numeric
+shoppers$Revenue <- as.numeric(shoppers$Revenue)
+nums <- shoppers[ ,c(1,2,3,4,5,6,7,8,9,10,12,13,14,15,18)]
+# Correlation matrix
+corr_matrix = cor(nums)
+corr <- as.data.frame(round(corr_matrix,2))
+corr
+```
+
+```{r Scatter Plot}
+admin <- shoppers$Administrative
+admin_d <- shoppers$Administrative_Duration
+info <- shoppers$Informational
+info_d <- shoppers$Informational_Duration
+prod <- shoppers$ProductRelated
+prod_d <- shoppers$ProductRelated_Duration
+exit <- shoppers$ExitRates
+bounce <- shoppers$BounceRates
+page <- shoppers$PageValues
+# Administrative
+plot(admin,exit,main = "Relationship between the Administrative and Exit Rate", xlab="Administrative", ylab="Exit Rate")
+plot(admin,bounce,main = "Relationship between the Admintrative and Bounce Rate",xlab="Administrative",ylab = "Bounce Rate")
+plot(admin,page, main = "Relationship between the Admintrative and Page Values",xlab="Administrative",ylab = "Page Value")
+plot(admin, admin_d = "Relationship between the Administrative and Administrative Duration",xlab="Administrative",ylab = "Administrative Duration")
+# Informational
+plot(info,exit,main = "Relationship between the Informational and Exit Rate",xlab = "Informational",ylab = "Exit Rates")
+plot(info,bounce,main = "Relationship between the Informational and Bounce Rate",xlab = "Informational", ylab = "Bounce Rates")
+plot(info,page, main = "Relationship between the Informational and Page Values",xlab = "Informational",ylab = "Page Values")
+plot(info, info_d, main = "Relationship between the Informational and Informational Duration", xlab = "Informational",ylab = "Informational Duration")
+# Product Related
+plot(prod,exit,main = "Relationship between the Product Related and Exit Rate",xlab="Product Related",ylab = "Exit Rates")
+plot(prod,bounce,main = "Relationship between the Product Related and Bounce Rate",xlab="Product Related",ylab = "Bounce Rates")
+plot(prod,page, main = "Relationship between the Product Related and Page Values",xlab="Product Related",ylab = "Page Values")
+plot(prod, prod_d, main = "Relationship between the Product Related and ProductRelated Duration",xlab="Product Related",ylab ="Product Related Duration")
+#Duration
+plot(admin_d,info_d, main = "Relationship between Admin Duration and Informational Duration", xlab = "Administrative Duration", ylab = "Informational Duration")
+plot(prod_d, info_d,main = "Relationship between ProductRelated Duration and Informational Duration", xlab = "Product Related Duration",ylab = "Informational Duration")
+plot(admin_d,prod_d,main = "Relationship between Admin Duration and ProductRelated Duration", xlab = "Administrative Duration", ylab = "Product Related Duration")
+```
+
+
+##Solution
+
+### Hierarchial Clustering
+```{r Hclust}
+# Scale our data first
+data <- shoppers[,-18]
+data <- scale(data)
+head(data)
+#calculate the Euclidean distance
+d <- dist(data, method = "euclidean")
+# apply the h-clustering and use different methods
+model_comp <- hclust(d, method = "complete")
+model_ward <- hclust(d, method = "ward.D")
+model_ward2 <- hclust(d, method = "ward.D2")
+model_sing <- hclust(d, method = "single")
+model_avg <- hclust(d, method = "average")
+model_mc <- hclust(d, method = "mcquitty")
+model_med <- hclust(d, method = "median")
+model_cent <- hclust(d , method = "centroid")
+# Plot Dendograms
+plot(model_comp, cex = 0.6, hang = -1)
+plot(model_ward, cex = 0.6, hang = -1)
+plot(model_ward2, cex = 0.6, hang = -1)
+plot(model_sing, cex = 0.6, hang = -1)
+plot(model_avg, cex = 0.6, hang = -1)
+plot(model_mc, cex = 0.6, hang = -1)
+plot(model_med, cex = 0.6, hang = -1)
+plot(model_cent, cex = 0.6, hang =-1)
+```
+### K-Means Clustering
+```{r}
+# Transform Factors to Numeric
+shoppers$Month <- as.numeric(shoppers$Month)
+shoppers$VisitorType <- as.numeric(shoppers$VisitorType)
+shoppers$Weekend <- as.numeric(shoppers$Weekend)
+str(shoppers)
+```
+
+```{r}
+# K-Means is affected by Imbalanced data
+table(shoppers$Revenue)
+prop.table(table(shoppers$Revenue))
+# our class label is imbalanced thus we shall balance it
+# Split to train and test
+library(ROSE)
+library(caret)
+# Make the Revenue Class a factor again
+shoppers$Revenue <- as.factor(shoppers$Revenue)
+# Use ROSE, it helps us to generate data synthetically as well
+train.rose <- ROSE(Revenue ~ ., data = shoppers, seed = 1)$data
+table(train.rose$Revenue)
+feature <- train.rose[, -18]
+label <- train.rose[,"Revenue"]
+```
+
+```{r}
+# Normalize the data
+normalize <- function(x){
+  return ((x-min(x)) / (max(x)-min(x)))
+}
+# normalize the train
+feat_norm <- as.data.frame(lapply(feature, normalize))
+summary(feat_norm)
+```
+
+```{r Kmeans}
+#Apply the model
+model <- kmeans(feat_norm,2, nstart = 30)
+# check for no. of records in each cluster
+model$size
+# a set of initial (distinct) cluster centers.
+model$centers
+# shows the cluster where each record falls
+#model$cluster
+#Verfy the results
+plot(feat_norm[c(1:2)], col = model$cluster)
+plot(feat_norm[c(1:2)], col = label)
+plot(feat_norm[c(3:4)], col = model$cluster)
+plot(feat_norm[c(3:4)], col = label)
+plot(feat_norm[c(5:6)], col = model$cluster)
+plot(feat_norm[c(5:6)], col = label)
+```
+
+```{r Accuracy }
+tb <- table(model$cluster, label)
+tb
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+paste0("Accuracy: ",accuracy(tb))
+```
+
+Both models performed well with accuray above 75% which is optimal 

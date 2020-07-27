@@ -1,0 +1,288 @@
+---
+title: "Advertising alanysis"
+author: "Tom_Kinyanjui_Njoroge"
+date: "July 18, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Defining the Question
+
+1.Build a model that can predict whether a user will  click on the client's Ads
+
+###Metric of Success
+Build a model of accuracy above 75% which is optimum 
+
+
+## Importing libraries 
+```{r }
+library("dplyr")
+library("ggplot2")
+```
+
+```{r }
+# Load the dataset
+advertising <- read.csv("file:///C:/Users/HP/Downloads/online_shoppers_intention.csv")
+head(advertising)
+```
+## Checking the Data
+```{r }
+# The shape of the dataset
+dim(advertising)
+```
+
+```{r }
+# The Structure of the Data 
+str(advertising)
+```
+
+
+## Tidying the Data
+```{r }
+#checking null values 
+colSums(is.na(advertising))
+
+```
+
+```{r }
+#Checking duplicated Values 
+advert <- unique(advertising)
+dim(advert)
+# No duplicated values
+```
+
+
+```{r }
+#Outliers
+boxplot(advert$Daily.Time.Spent.on.Site,xlab="Daily Time Spent on Site",main="Boxplot on Daily Time Spent on Site")
+boxplot(advert$Age, xlab="Age",main="Boxplot on Age")
+boxplot(advert$Area.Income,xlab="Area Income",main="Boxplot on Area Income")
+boxplot(advert$Daily.Internet.Usage, xlab="Daily Internet Usage", main="Boxplot of Daily Internet Usage")
+boxplot(advert$Male, xlab="Male", main="Boxplot of Male")
+boxplot(advert$Clicked.on.Ad, xlab="Clicked on Ad", main="Boxplot of Clicked on Ad")
+# The number of outliers
+boxplot.stats(advert$Area.Income)$out
+sum(table(boxplot.stats(advert$Area.Income)$out))
+```
+## EDA
+### Univariate
+```{r Summary}
+#Numeric Values
+num = advert[,c(1,2,3,4,7,10)]
+summary(num)
+```
+#### Histogram
+```{r histogram, echo=FALSE}
+hist(advert$Daily.Time.Spent.on.Site, breaks = 20,main ="Daily Time Spent on Site", col = "dodgerblue")
+hist(advert$Age, breaks = 10,main = "Age",col = "dodgerblue")
+hist(advert$Area.Income, breaks = 20, main = "Area Income",col = "dodgerblue")
+hist(advert$Daily.Internet.Usage,breaks = 20,main = "Daily Internet Usage",col = "dodgerblue")
+hist(advert$Male,breaks = 10,main = "Male",col = "dodgerblue")
+hist(advert$Clicked.on.Ad,breaks = 10,main = "Clicked on Ad",col = "dodgerblue")
+```
+
+#### BarPlots
+```{r Barplots, echo=FALSE}
+# Males Vs. Females
+male <- table(advert$Male)
+barplot(male,main = "Male",col = topo.colors(2),ylim = c(0, 800))
+legend("topright",inset = .02, title="Gender",
+       c("Female","Male"), fill=topo.colors(2), cex=0.8)
+# No. of Clicked vs. Not Clicked
+clicked <- table(advert$Clicked.on.Ad)
+barplot(clicked,main = "Clicked on Ad",col = topo.colors(2), ylim = c(0,800))
+legend("topright",inset = .02, title="Clicked on Ad",
+       c("Not Clicked","Clicked"), fill=topo.colors(2), cex=0.8)
+# the most popular countries
+par(las=2, cex.axis=0.7)
+country <- table(advert$Country)
+barplot(sort(country[1:40], decreasing = TRUE), main = "Country",col = terrain.colors(20))
+# The most popular Age
+par(las=2)
+age <- table(advert$Age)
+barplot(sort(age[1:20], decreasing = TRUE), main = "Age",col = terrain.colors(20))
+# group by gender/Male
+# Gender that Spends more Time on the Internet
+by_time <- advert %>% 
+  group_by(Male) %>% 
+  summarise(Total.Time.Spent.on.Site = sum(Daily.Time.Spent.on.Site))
+p <- ggplot(by_time, aes(x = factor(Male), y = Total.Time.Spent.on.Site, fill = factor(Male)))+geom_bar(stat="identity")
+p + scale_fill_discrete(name = "Male", labels = c("Female","Male"))+ labs(title="Gender that spends more time on the Internet", x="Gender")
+# Group by country, Country with more clicks on Ad
+by_country <- advert %>% group_by(Country) %>% summarise(clicked.ad =sum(Clicked.on.Ad[Clicked.on.Ad == 1]))
+# select the first 20
+rows <- by_country[1:20,]
+rows
+c <- ggplot(rows, aes(x = reorder(Country,clicked.ad), y=clicked.ad)) + geom_col() +coord_flip() +  geom_bar(stat="identity", fill="dodgerblue")
+c + labs(title="Country with Highest Clicks on Ads", x="Countries", y="Clicked Ads")
+# Females that click on ads
+by_gender <- advert %>% group_by(Clicked.on.Ad) %>% summarise(gender = length(Male[Male == 0]))
+by_gender
+females <- ggplot(by_gender, aes(x = factor(Clicked.on.Ad), y = gender, fill=factor(Clicked.on.Ad))) + geom_bar(stat="identity")
+females + scale_fill_discrete(name = "Ad Clicked", labels = c("Not Clicked","Clicked"))+ labs(title="Females that Clicked vs Not Clicked", x="Clicked on Ad", y="No. of Females")
+# Males that clicked on ads
+by_males <- advert %>% group_by(Clicked.on.Ad) %>% summarise(gender = length(Male[Male == 1]))
+by_males
+males <- ggplot(by_males, aes(x = factor(Clicked.on.Ad), y = gender, fill=factor(Clicked.on.Ad))) + geom_bar(stat="identity")
+males + scale_fill_discrete(name = "Ad Clicked", labels = c("Not Clicked","Clicked"))+ labs(title="Males that Clicked vs Not Clicked", x="Clicked on Ad", y="No. of Males")
+```
+
+```{r }
+# Ad topic Line
+value.count <- table(advert$Ad.Topic.Line)
+head(value.count)
+sum(value.count)
+# Only one occurrence of every topic line
+```
+
+### Bivariate
+
+#### Covariance
+```{r}
+numeric_col <- advert[,c(1,2,3,4,7,10)]
+head(numeric_col,4)
+# Covariance
+covariance_matrix = cov(numeric_col)
+#View(round(covariance_matrix,2))
+covariance <-as.data.frame(round(covariance_matrix,2))
+```
+
+#### Correlation
+```{r}
+# Correlation Matrix
+correlation_matrix = cor(numeric_col)
+#View(round(correlation_matrix,2))
+corr <- as.data.frame(round(correlation_matrix,2))
+corr
+```
+
+#### Scatter Plots
+
+```{r}
+area.income <- advert$Area.Income
+internet.usage <- advert$Daily.Internet.Usage
+time.spent <- advert$Daily.Time.Spent.on.Site
+plot(area.income, internet.usage, xlab="Area Income",ylab = "Daily Internet Usage",main = "Area Income vs Daily Internet Usage")
+plot(area.income,time.spent,xlab = "Area Income",ylab = "Daily Time Spent on the Internet",main="Area Income vs Daily Time Spent on the Internet")
+plot(time.spent,internet.usage, xlab="Daily Time spent", ylab="Daily Internet Usage",main = "Daily Time Spent on Site vs Daily Internet Usage")
+```
+
+##Solution Implementation 
+
+```{r}
+#importing our libraries 
+library("caret")
+library("tidyverse")
+library("e1071")
+library("rpart")
+library("rpart.plot")
+library("ISLR")
+```
+
+### K-Nearest Neighbours
+```{r }
+# Normalize our features
+features <- advert[,c(1,2,3,4,7)]
+# The normalization function is created
+normalize <-function(x) { (x -min(x))/(max(x)-min(x))}
+# Normalization function is applied to the dataframe
+advert_norm <- as.data.frame(lapply(features, normalize))
+head(advert_norm)
+summary(advert_norm)
+```
+
+```{r }
+train <- sample(1:nrow(advert), 0.8 * nrow(advert)) 
+#training data
+advert_train <- advert_norm[train,]
+advert_train_target <- as.factor(advert[train,10])
+# testing data
+advert_test <- advert_norm[-train,]
+advert_test_target <- as.factor(advert[-train,10])
+dim(advert_train)
+dim(advert_test)
+```
+##KNN
+```{r}
+# Applying k-NN classification algorithm.
+library(class)
+# No. of neighbors are generally square root of total number of instances
+neigh <- round(sqrt(nrow(advert)))+1 
+knn_model <- knn(advert_train,advert_test, cl=advert_train_target, k=neigh)
+# Visualizing classification results
+cm_knn <- confusionMatrix(table(advert_test_target, knn_model))
+cm_knn
+```
+
+### Decision Trees
+```{r}
+anyNA(advert)
+```
+
+```{r }
+
+advert$Clicked.on.Ad <- as.factor(advert$Clicked.on.Ad)
+features = advert[,c(1,2,3,4,7,10)]
+# Split the Data into Train and Test into 80:20 split
+intrain <- createDataPartition(y = advert$Clicked.on.Ad, p= 0.8, list = FALSE)
+training <- features[intrain,]
+testing <- features[-intrain,]
+set.seed(42)
+myGrid <- expand.grid(mtry = sqrt(ncol(advert)),
+                     splitrule = c("gini", "extratrees"),
+                     min.node.size = 20)
+dt_model <- train(Clicked.on.Ad ~ .,
+               data = training,
+               method = "ranger", 
+               tuneGrid = myGrid,
+               trControl = trainControl(method='repeatedcv', 
+                                        number=10, 
+                                        repeats=3,
+                                        search = 'random',
+                                       verboseIter = FALSE))
+dt_model
+plot(dt_model)
+# Make predictions and check accuracy 
+dt_pred <- predict(dt_model,testing )
+cm_dt <- confusionMatrix(table(dt_pred, testing$Clicked.on.Ad))
+cm_dt
+```
+### Support Vector Machines
+```{r }
+# Split the Data into Train and Test into 80:20 split
+intrain <- createDataPartition(y = advert$Clicked.on.Ad, p= 0.8, list = FALSE)
+training <- features[intrain,]
+testing <- features[-intrain,]
+set.seed(42)
+svm_Linear <- train(Clicked.on.Ad ~., data = training, method = "svmLinear",
+trControl=trainControl(method = "repeatedcv", 
+                       numberw = 10,
+                       repeats = 3),
+                      preProcess = c("center", "scale"))
+# preProcess -> deals with normalization
+svm_Linear
+# Make predictions and check accuracy 
+test_pred <- predict(svm_Linear, testing)
+cm_svmlinear <- confusionMatrix(table(test_pred, testing$Clicked.on.Ad))
+cm_svmlinear
+```
+
+### Naive Bayes
+```{r Naive Bayes}
+# split the training into Features and labels for the model
+x = training[,1:4]
+y = training$Clicked.on.Ad
+nb_model <- train(x,y, "nb", trControl = trainControl(method = "repeatedcv", 
+                       number = 10,
+                       repeats = 3),
+                      preProcess = c("range"))
+# Make prediction
+nb_pred <- predict(nb_model , testing)
+# Accuracy
+cm_nb <- confusionMatrix(table(nb_pred, testing$Clicked.on.Ad))
+cm_nb
+```
+Model performance was above optimum since accuracy was above 75%
